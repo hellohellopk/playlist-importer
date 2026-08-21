@@ -23,9 +23,9 @@ body {
   min-height: 100vh;
   margin: 0;
   background-color: #f4f5f4;
-  background-image: linear-gradient(rgba(248,249,247,.91), rgba(248,249,247,.91)), url("/manus-storage/playlist-importer-microtexture_231e2b72.png");
+  background-image: radial-gradient(circle at 12% 5%, rgba(242,79,90,.06), transparent 22rem), radial-gradient(circle at 88% 11%, rgba(46,139,87,.055), transparent 20rem), repeating-linear-gradient(0deg, rgba(71,85,105,.024) 0 1px, transparent 1px 6px);
   background-attachment: fixed;
-  background-size: auto, 980px auto;
+  background-size: auto, auto, 7px 7px;
 }
 button, input, select { font: inherit; }
 button:not(:disabled), a[href], select:not(:disabled) { cursor: pointer; }
@@ -45,7 +45,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 .window-dots i:nth-child(1) { background: #fa6459; }
 .window-dots i:nth-child(2) { background: #f9bd4e; }
 .window-dots i:nth-child(3) { background: #2ac966; }
-.brand-mark { width: 1.85rem; height: 1.85rem; object-fit: contain; }
+.brand-mark { position: relative; display: inline-block; width: 1.85rem; height: 1.85rem; overflow: hidden; border: 2px solid #273548; border-radius: 50%; background: #f8fafc; }
+.brand-mark::before, .brand-mark::after { position: absolute; width: 1.1rem; height: 1.1rem; border: .18rem solid #ef5762; border-radius: 50%; content: ""; }
+.brand-mark::before { top: .18rem; left: .12rem; border-right-color: transparent; transform: rotate(-28deg); }
+.brand-mark::after { right: .1rem; bottom: .16rem; border-color: #2e8b57; border-left-color: transparent; transform: rotate(-28deg); }
 .brand-wordmark { color: #243346; font-size: .82rem; font-weight: 700; letter-spacing: -.045em; line-height: 1; white-space: nowrap; }
 .brand-wordmark b { color: #d94652; font-weight: 800; }
 .eyebrow { margin: 0; color: #64748b; font-family: "IBM Plex Mono", monospace; font-size: .64rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; }
@@ -66,7 +69,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 
 .intro-panel { position: relative; min-height: 10.75rem; padding: 1.45rem 1.4rem; border: 1px solid rgba(148,163,184,.26); border-radius: 1.25rem; background: linear-gradient(100deg, rgba(239,243,242,.98) 0%, rgba(246,248,247,.96) 58%, rgba(236,242,239,.94) 100%); box-shadow: 0 18px 42px rgba(30,41,59,.065); isolation: isolate; overflow: hidden; }
 .intro-panel::after { position: absolute; inset: 0; border: 1px solid rgba(255,255,255,.72); border-radius: inherit; content: ""; pointer-events: none; }
-.intro-art { position: absolute; inset: 0 0 0 auto; width: 54%; height: 100%; object-fit: cover; opacity: .34; mix-blend-mode: multiply; filter: grayscale(.5) contrast(1.05); z-index: -1; mask-image: linear-gradient(to right, transparent, black 38%); }
+.intro-art { position: absolute; inset: 0 0 0 auto; width: 54%; opacity: .52; z-index: -1; overflow: hidden; mask-image: linear-gradient(to right, transparent, black 38%); }
+.intro-art::before, .intro-art::after { position: absolute; border: 1px solid rgba(71,85,105,.15); border-radius: 999px; content: ""; }
+.intro-art::before { width: 21rem; height: 7rem; right: -2rem; top: 1.55rem; box-shadow: -3rem 1rem 0 -1px rgba(239,87,98,.38), -6.1rem -1.3rem 0 -1px rgba(46,139,87,.32); transform: rotate(-13deg); }
+.intro-art::after { width: 13rem; height: 13rem; right: 1.4rem; top: -3.2rem; border-width: 1.8rem; border-color: rgba(255,255,255,.46); box-shadow: inset 0 0 0 1px rgba(46,139,87,.14); }
 .intro-panel h1 { margin: .35rem 0 .68rem; max-width: 33rem; color: #20312a; font-size: clamp(1.68rem, 3.65vw, 2.5rem); line-height: 1.02; letter-spacing: -.065em; font-weight: 800; }
 .intro-panel h1 em { color: #d44651; font-style: normal; }
 .intro-copy { max-width: 32rem; margin: 0; color: #51635b; font-size: .87rem; font-weight: 500; line-height: 1.65; }

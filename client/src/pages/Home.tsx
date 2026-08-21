@@ -727,7 +727,7 @@ export default function Home() {
             <div className="flex items-center gap-2">
               <div className="window-dots" aria-hidden="true"><i /><i /><i /></div>
               <div className="ml-2 flex items-center gap-2">
-                <img className="brand-mark" src="/manus-storage/playlist-importer-logo_c01581de.png" alt="Playlist Importer" />
+                <span className="brand-mark" aria-hidden="true" />
                 <span className="brand-wordmark">Playlist <b>Importer</b></span>
               </div>
             </div>
@@ -756,7 +756,7 @@ export default function Home() {
         </header>
 
         <section className="intro-panel mt-5 overflow-hidden" aria-label="播放清單匯入">
-          <img className="intro-art" src="/manus-storage/playlist-importer-flow_2d111c9f.png" alt="抽象化的音樂資料流" />
+          <div className="intro-art" aria-hidden="true" />
           <div className="relative z-10 max-w-xl">
             <p className="eyebrow text-slate-500">跨服務匯入台</p>
             <h1>貼上公開歌單連結，<br /><em>整理每一首歌。</em></h1>

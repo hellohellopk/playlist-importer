@@ -206,6 +206,8 @@ function vitePluginStorageProxy(): Plugin {
 const plugins = [react(), tailwindcss(), jsxLocPlugin(), vitePluginManusRuntime(), vitePluginManusDebugCollector(), vitePluginStorageProxy()];
 
 export default defineConfig({
+  // GitHub Pages hosts this project below /playlist-importer/; local and Manus previews stay at the root path.
+  base: process.env.GITHUB_ACTIONS === "true" ? "/playlist-importer/" : "/",
   plugins,
   resolve: {
     alias: {
