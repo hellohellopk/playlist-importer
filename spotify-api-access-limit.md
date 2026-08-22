@@ -10,6 +10,10 @@ Spotify 的 2026 年 Web API 開發模式變更指南搜尋結果亦指出，Dev
 
 目前保留既有 Spotify 公開頁面／嵌入頁面解析作為首批曲目讀取回退機制。Apple Music 的 Cloudflare Worker 完整分頁端點與 CSV、JSON、TXT 匯出不受此限制影響。
 
+## 公開網頁擷取初步觀察
+
+以未登入瀏覽器讀取 `open.spotify.com` 公開歌單頁時，頁面未呈現文字或曲目資料；文件雖載入 Web Player 腳本，也同時載入 Google reCAPTCHA 腳本。此現象不構成可穩定、可公開分頁讀取的資料介面，且本專案不會嘗試繞過驗證或登入機制。
+
 參考資料：
 
 1. Spotify Developer，2026 年 Web API 遷移指南：<https://developer.spotify.com/documentation/web-api/tutorials/february-2026-migration-guide>

@@ -1,3 +1,5 @@
+import { loadAllPublicSpotifyTracks } from "./spotifyPublic";
+
 type JsonRecord = Record<string, unknown>;
 
 type AppleTrack = {
@@ -195,7 +197,8 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders(request, env) });
-    if (url.pathname !== "/v1/apple/playlists" || request.method !== "POST") {
+    const supportedPath = url.pathname === "/v1/apple/playlists" || url.pathname === "/v1/spotify/playlists";
+    if (!supportedPath || request.method !== "POST") {
       return responseJson(request, env, { error: "找不到 API 路徑。" }, 404);
     }
 
@@ -204,7 +207,11 @@ export default {
       const body = (await request.json()) as JsonRecord;
       const playlistUrl = stringValue(body.url);
       if (!playlistUrl) throw new Error("缺少播放清單連結。");
-      return responseJson(request, env, await loadAllAppleTracks(playlistUrl));
+      const result =
+        url.pathname === "/v1/spotify/playlists"
+          ? await loadAllPublicSpotifyTracks(playlistUrl)
+          : await loadAllAppleTracks(playlistUrl);
+      return responseJson(request, env, result);
     } catch (error) {
       const message = error instanceof Error ? error.message : "播放清單暫時無法讀取。";
       const status = message.includes("只接受") ? 403 : 400;

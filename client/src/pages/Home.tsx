@@ -116,6 +116,14 @@ function hydrateAppleSongs(songs: ImportedAppleSong[]): Song[] {
   }));
 }
 
+function hydrateSpotifySongs(songs: ImportedAppleSong[]): Song[] {
+  return songs.map((song) => ({
+    ...song,
+    accent: stableAccent(`${song.name}-${song.artist}`),
+    source: "spotify",
+  }));
+}
+
 async function importCompleteApplePlaylist(
   url: string,
   importFromProjectApi: (input: { url: string }) => Promise<{ title: string; songs: ImportedAppleSong[] }>,
@@ -130,6 +138,20 @@ async function importCompleteApplePlaylist(
   const payload = (await response.json()) as { title?: string; songs?: ImportedAppleSong[]; error?: string };
   if (!response.ok) throw new Error(payload.error || "完整播放清單 API 暫時無法讀取。");
   if (!payload.title || !Array.isArray(payload.songs)) throw new Error("完整播放清單 API 回傳資料格式無效。");
+  return { title: payload.title, songs: payload.songs };
+}
+
+async function importCompleteSpotifyPlaylist(url: string) {
+  if (!WORKER_API_ORIGIN) return null;
+
+  const response = await fetch(`${WORKER_API_ORIGIN}/v1/spotify/playlists`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url }),
+  });
+  const payload = (await response.json()) as { title?: string; songs?: ImportedAppleSong[]; error?: string };
+  if (!response.ok) throw new Error(payload.error || "Spotify 公開完整曲目服務暫時無法讀取。");
+  if (!payload.title || !Array.isArray(payload.songs)) throw new Error("Spotify 公開完整曲目服務回傳資料格式無效。");
   return { title: payload.title, songs: payload.songs };
 }
 
@@ -515,8 +537,24 @@ export default function Home() {
           songs = hydrateAppleSongs(imported.songs);
           title = imported.title;
         } else {
-          html = await fetchData(pastedUrl);
-          songs = parseSpotifySongs(html);
+          let imported: { title: string; songs: ImportedAppleSong[] } | null = null;
+          if (WORKER_API_ORIGIN) {
+            addLog("Spotify：正在讀取完整公開曲目清單…");
+            try {
+              imported = await importCompleteSpotifyPlaylist(pastedUrl);
+            } catch (error) {
+              const message = error instanceof Error ? error.message : "完整公開曲目服務暫時無法使用。";
+              addLog(`提示：${message} 正在改用公開頁面解析。`);
+            }
+          }
+
+          if (imported) {
+            songs = hydrateSpotifySongs(imported.songs);
+            title = imported.title;
+          } else {
+            html = await fetchData(pastedUrl);
+            songs = parseSpotifySongs(html);
+          }
         }
 
         if (service === "spotify" && songs.length === 0) {
