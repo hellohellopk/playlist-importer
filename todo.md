@@ -1,0 +1,18 @@
+# 完整曲目擷取工作清單
+
+- [x] 定位 Apple Music 與 Spotify 播放清單解析器中的曲目上限。
+- [x] 移除截斷邏輯並保留所有可解析的曲目。
+- [x] 驗證完整清單計數與匯出資料一致。
+- [ ] 同步更新至 GitHub Pages。
+- [x] 解決後端升級衝突並保留既有播放清單操作介面。
+- [x] 比較保留 GitHub Pages 時可支援完整曲目擷取的替代後端方案。
+- [x] 建立 Cloudflare Worker 的公開播放清單完整讀取 API。
+- [x] 限制 Worker 只接受 GitHub Pages 前端與 Apple Music 公開網址。
+- [ ] 將 GitHub Pages 前端改接 Worker API 並驗證完整曲目輸出。
+- [x] 提供 Cloudflare 帳戶端部署與 Worker 網址設定步驟。
+- [x] 在 Cloudflare 驗證受阻時評估並整理可重用 Worker 程式的替代公開部署方案。
+- [x] 在 Cloudflare 驗證完成後部署 Worker 並啟用 workers.dev API。
+- [ ] 排除 Cloudflare 登入頁的驗證錯誤並重新確認 Worker 部署授權。
+- [x] 選擇外部瀏覽器登入或最小權限 API 權杖方式完成 Cloudflare Worker 授權。
+- [x] 安全取得 Cloudflare API Token 並驗證其可部署 Workers。
+- [x] 改用 Cloudflare API Token 完成 Worker 部署授權，避開內嵌登入驗證失敗。

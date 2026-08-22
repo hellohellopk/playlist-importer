@@ -35,6 +35,8 @@ jobs:
 
       - name: Build static site
         run: pnpm build
+        env:
+          VITE_PLAYLIST_API_ORIGIN: https://playlist-importer-api.nippon-eb8.workers.dev
 
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5

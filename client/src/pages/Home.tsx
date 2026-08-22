@@ -23,6 +23,7 @@ import {
   SlidersHorizontal,
   X,
 } from "lucide-react";
+import { trpc } from "@/lib/trpc";
 
 type Service = "apple" | "spotify";
 type Status = "idle" | "loading" | "done" | "error";
@@ -38,6 +39,8 @@ type Song = {
   accent: string;
   source: Service;
 };
+
+type ImportedAppleSong = Omit<Song, "accent" | "source">;
 
 type Playlist = { title: string; url: string };
 
@@ -55,6 +58,7 @@ const LEGACY_CONFIG_KEY = "am_tracker_config";
 const CUSTOM_PLAYLIST = "pasted_playlist";
 const VERCEL_PROXY = "https://my-vercel-proxy-iota.vercel.app/api/proxy?url=";
 const CF_PROXY = "https://round-morning-c112.nippon-eb8.workers.dev/?url=";
+const WORKER_API_ORIGIN = safeString(import.meta.env.VITE_PLAYLIST_API_ORIGIN).replace(/\/$/, "");
 
 const DEFAULT_CONFIG: Config = {
   category: "new_songs",
@@ -102,6 +106,31 @@ function uniqueSongs(songs: Song[]) {
           candidate.artist.toLocaleLowerCase() === song.artist.toLocaleLowerCase(),
       ) === index,
   );
+}
+
+function hydrateAppleSongs(songs: ImportedAppleSong[]): Song[] {
+  return songs.map((song) => ({
+    ...song,
+    accent: stableAccent(`${song.name}-${song.artist}`),
+    source: "apple",
+  }));
+}
+
+async function importCompleteApplePlaylist(
+  url: string,
+  importFromProjectApi: (input: { url: string }) => Promise<{ title: string; songs: ImportedAppleSong[] }>,
+) {
+  if (!WORKER_API_ORIGIN) return importFromProjectApi({ url });
+
+  const response = await fetch(`${WORKER_API_ORIGIN}/v1/apple/playlists`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url }),
+  });
+  const payload = (await response.json()) as { title?: string; songs?: ImportedAppleSong[]; error?: string };
+  if (!response.ok) throw new Error(payload.error || "完整播放清單 API 暫時無法讀取。");
+  if (!payload.title || !Array.isArray(payload.songs)) throw new Error("完整播放清單 API 回傳資料格式無效。");
+  return { title: payload.title, songs: payload.songs };
 }
 
 function cleanUrl(url: string) {
@@ -397,6 +426,7 @@ function getInitialConfig(): Config {
 }
 
 export default function Home() {
+  const { mutateAsync: importAppleAll } = trpc.playlist.importAppleAll.useMutation();
   const [config, setConfig] = useState<Config>(getInitialConfig);
   const [status, setStatus] = useState<Status>("idle");
   const [logs, setLogs] = useState<string[]>(["待命：選擇來源或貼上公開歌單連結。"]);
@@ -475,8 +505,19 @@ export default function Home() {
       addLog(`${serviceMeta[service].label}：正在讀取公開歌單資料…`);
 
       try {
-        let html = await fetchData(pastedUrl);
-        let songs = service === "apple" ? parseAppleSongs(html) : parseSpotifySongs(html);
+        let html = "";
+        let songs: Song[] = [];
+        let title = "";
+
+        if (service === "apple") {
+          addLog("Apple Music：正在讀取完整曲目清單…");
+          const imported = await importCompleteApplePlaylist(pastedUrl, importAppleAll);
+          songs = hydrateAppleSongs(imported.songs);
+          title = imported.title;
+        } else {
+          html = await fetchData(pastedUrl);
+          songs = parseSpotifySongs(html);
+        }
 
         if (service === "spotify" && songs.length === 0) {
           const playlistId = extractSpotifyId(pastedUrl);
@@ -495,11 +536,13 @@ export default function Home() {
           );
         }
 
-        const documentNode = new DOMParser().parseFromString(html, "text/html");
-        const title =
-          safeString(documentNode.querySelector('meta[property="og:title"]')?.getAttribute("content")) ||
-          safeString(documentNode.querySelector("title")?.textContent) ||
-          `${serviceMeta[service].label} 自訂歌單`;
+        if (!title) {
+          const documentNode = new DOMParser().parseFromString(html, "text/html");
+          title =
+            safeString(documentNode.querySelector('meta[property="og:title"]')?.getAttribute("content")) ||
+            safeString(documentNode.querySelector("title")?.textContent) ||
+            `${serviceMeta[service].label} 自訂歌單`;
+        }
 
         setConfig((previous) => ({ ...previous, category: CUSTOM_PLAYLIST, pastedService: service, pastedUrl }));
         setPlaylistName(title.replace(/\s*[-|–—]\s*(Spotify|Apple Music).*$/i, "").trim());
@@ -512,7 +555,7 @@ export default function Home() {
         addLog(`錯誤：${message}`);
       }
     },
-    [addLog],
+    [addLog, importAppleAll],
   );
 
   const runSync = useCallback(async () => {
@@ -558,11 +601,12 @@ export default function Home() {
         setConfig((previous) => ({ ...previous, roomUrl: currentUrl }));
       }
 
-      addLog("Apple Music：正在整理曲目資料…");
-      const html = await fetchData(currentUrl);
-      const songs = parseAppleSongs(html);
+      addLog("Apple Music：正在讀取完整曲目清單…");
+      const imported = await importCompleteApplePlaylist(currentUrl, importAppleAll);
+      const songs = hydrateAppleSongs(imported.songs);
       if (!songs.length) throw new Error("沒有可解析的歌曲資料");
       setRoomSongs(songs);
+      if (!selectedCategory) setPlaylistName(imported.title);
       setStatus("done");
       addLog(`完成：已擷取 ${songs.length} 首 Apple Music 歌曲。`);
     } catch (error) {
@@ -570,7 +614,7 @@ export default function Home() {
       const message = error instanceof Error ? error.message : "來源暫時無法讀取";
       addLog(`錯誤：Apple Music 同步失敗（${message}）。`);
     }
-  }, [config, importPastedPlaylist, topPlaylists, addLog]);
+  }, [config, importPastedPlaylist, topPlaylists, addLog, importAppleAll]);
 
   useEffect(() => {
     void runSync();

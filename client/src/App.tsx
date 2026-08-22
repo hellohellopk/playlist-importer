@@ -11,8 +11,8 @@ import Home from "./pages/Home";
  * both Manus root previews and GitHub Pages subpaths should open the same calm import console.
  */
 const routeBase = import.meta.env.BASE_URL === "/" ? undefined : import.meta.env.BASE_URL.replace(/\/$/, "");
-
 function AppRouter() {
+  // make sure to consider if you need authentication for certain routes
   return (
     <WouterRouter base={routeBase}>
       <Switch>
