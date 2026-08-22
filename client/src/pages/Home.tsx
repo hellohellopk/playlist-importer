@@ -24,6 +24,14 @@ import {
   X,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import {
+  isRecentPlaylistImport,
+  mergeRecentImports,
+  nextVisibleSongCount,
+  SONGS_PER_RENDER_BATCH,
+  type RecentPlaylistImport,
+  visibleSongCount,
+} from "@/lib/playlistLargeList";
 
 type Service = "apple" | "spotify";
 type Status = "idle" | "loading" | "done" | "error";
@@ -55,6 +63,7 @@ type Config = {
 
 const CONFIG_KEY = "playlist_importer_config_v6";
 const LEGACY_CONFIG_KEY = "am_tracker_config";
+const RECENT_IMPORTS_KEY = "playlist_importer_recent_imports_v1";
 const CUSTOM_PLAYLIST = "pasted_playlist";
 const VERCEL_PROXY = "https://my-vercel-proxy-iota.vercel.app/api/proxy?url=";
 const CF_PROXY = "https://round-morning-c112.nippon-eb8.workers.dev/?url=";
@@ -447,6 +456,17 @@ function getInitialConfig(): Config {
   }
 }
 
+function getInitialRecentImports(): RecentPlaylistImport[] {
+  try {
+    const raw = localStorage.getItem(RECENT_IMPORTS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) ? parsed.filter(isRecentPlaylistImport) : [];
+  } catch {
+    return [];
+  }
+}
+
 export default function Home() {
   const { mutateAsync: importAppleAll } = trpc.playlist.importAppleAll.useMutation();
   const [config, setConfig] = useState<Config>(getInitialConfig);
@@ -467,6 +487,12 @@ export default function Home() {
   const [sendingMap, setSendingMap] = useState<Record<string, "sending" | "success" | "error" | undefined>>({});
   const [playlistName, setPlaylistName] = useState("必聽新歌");
   const [lastExportFormat, setLastExportFormat] = useState<ExportFormat | null>(null);
+  const [recentImports, setRecentImports] = useState<RecentPlaylistImport[]>(getInitialRecentImports);
+  const [visibleSongLimit, setVisibleSongLimit] = useState(SONGS_PER_RENDER_BATCH);
+  const [importProgress, setImportProgress] = useState<{ message: string; songCount: number | null }>({
+    message: "等待擷取公開歌單",
+    songCount: null,
+  });
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const observerTarget = useRef<HTMLDivElement | null>(null);
   const searchCache = useRef<Record<string, { timestamp: number; data: Song[] }>>({});
@@ -478,6 +504,10 @@ export default function Home() {
   useEffect(() => {
     localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
   }, [config]);
+
+  useEffect(() => {
+    localStorage.setItem(RECENT_IMPORTS_KEY, JSON.stringify(recentImports));
+  }, [recentImports]);
 
   useEffect(() => {
     const audio = new Audio();
@@ -524,6 +554,8 @@ export default function Home() {
       setStatus("loading");
       setSearchTerm("");
       if (!isRefresh) setRoomSongs([]);
+      setVisibleSongLimit(SONGS_PER_RENDER_BATCH);
+      setImportProgress({ message: `${serviceMeta[service].label}：正在建立公開讀取連線`, songCount: null });
       addLog(`${serviceMeta[service].label}：正在讀取公開歌單資料…`);
 
       try {
@@ -533,6 +565,7 @@ export default function Home() {
 
         if (service === "apple") {
           addLog("Apple Music：正在讀取完整曲目清單…");
+          setImportProgress({ message: "Apple Music：正在取得全部公開分頁", songCount: null });
           const imported = await importCompleteApplePlaylist(pastedUrl, importAppleAll);
           songs = hydrateAppleSongs(imported.songs);
           title = imported.title;
@@ -540,6 +573,7 @@ export default function Home() {
           let imported: { title: string; songs: ImportedAppleSong[] } | null = null;
           if (WORKER_API_ORIGIN) {
             addLog("Spotify：正在讀取完整公開曲目清單…");
+            setImportProgress({ message: "Spotify：正在逐頁讀取完整公開曲目", songCount: null });
             try {
               imported = await importCompleteSpotifyPlaylist(pastedUrl);
             } catch (error) {
@@ -583,12 +617,25 @@ export default function Home() {
         }
 
         setConfig((previous) => ({ ...previous, category: CUSTOM_PLAYLIST, pastedService: service, pastedUrl }));
-        setPlaylistName(title.replace(/\s*[-|–—]\s*(Spotify|Apple Music).*$/i, "").trim());
+        const normalizedTitle = title.replace(/\s*[-|–—]\s*(Spotify|Apple Music).*$/i, "").trim();
+        setPlaylistName(normalizedTitle);
         setRoomSongs(songs);
+        setVisibleSongLimit(visibleSongCount(songs.length, SONGS_PER_RENDER_BATCH));
+        setRecentImports((previous) =>
+          mergeRecentImports(previous, {
+            title: normalizedTitle || `${serviceMeta[service].label} 自訂歌單`,
+            url: pastedUrl,
+            service,
+            songCount: songs.length,
+            importedAt: Date.now(),
+          }),
+        );
+        setImportProgress({ message: "完整曲目已整理完成", songCount: songs.length });
         setStatus("done");
         addLog(`完成：已擷取 ${songs.length} 首歌曲。`);
       } catch (error) {
         setStatus("error");
+        setImportProgress({ message: "讀取未完成，請檢查連結或稍後重試", songCount: null });
         const message = error instanceof Error ? error.message : "來源暫時無法讀取";
         addLog(`錯誤：${message}`);
       }
@@ -605,6 +652,8 @@ export default function Home() {
     setStatus("loading");
     setRoomSongs([]);
     setSearchTerm("");
+    setVisibleSongLimit(SONGS_PER_RENDER_BATCH);
+    setImportProgress({ message: "Apple Music：正在建立完整曲目讀取連線", songCount: null });
     const selectedCategory = CATEGORIES[config.category];
     let currentUrl = config.roomUrl;
 
@@ -640,15 +689,19 @@ export default function Home() {
       }
 
       addLog("Apple Music：正在讀取完整曲目清單…");
+      setImportProgress({ message: "Apple Music：正在取得全部公開分頁", songCount: null });
       const imported = await importCompleteApplePlaylist(currentUrl, importAppleAll);
       const songs = hydrateAppleSongs(imported.songs);
       if (!songs.length) throw new Error("沒有可解析的歌曲資料");
       setRoomSongs(songs);
+      setVisibleSongLimit(visibleSongCount(songs.length, SONGS_PER_RENDER_BATCH));
+      setImportProgress({ message: "完整曲目已整理完成", songCount: songs.length });
       if (!selectedCategory) setPlaylistName(imported.title);
       setStatus("done");
       addLog(`完成：已擷取 ${songs.length} 首 Apple Music 歌曲。`);
     } catch (error) {
       setStatus("error");
+      setImportProgress({ message: "讀取未完成，請稍後重試", songCount: null });
       const message = error instanceof Error ? error.message : "來源暫時無法讀取";
       addLog(`錯誤：Apple Music 同步失敗（${message}）。`);
     }
@@ -821,6 +874,12 @@ export default function Home() {
     return list.filter((song) => !onlyChinese || /[\u4e00-\u9fff]/.test(`${song.name}${song.artist}`));
   }, [roomSongs, searchSongs, searchTerm, onlyChinese]);
 
+  const searchActive = Boolean(searchTerm.trim());
+  const visibleList = useMemo(
+    () => (searchActive ? displayList : displayList.slice(0, visibleSongCount(displayList.length, visibleSongLimit))),
+    [displayList, searchActive, visibleSongLimit],
+  );
+
   const activeLabel = useMemo(() => {
     if (config.category === CUSTOM_PLAYLIST) return playlistName || "自訂歌單";
     if (CATEGORIES[config.category]) return CATEGORIES[config.category].label;
@@ -828,7 +887,6 @@ export default function Home() {
   }, [config.category, playlistName, topPlaylists]);
 
   const currentService: Service = config.category === CUSTOM_PLAYLIST ? config.pastedService : "apple";
-  const searchActive = Boolean(searchTerm.trim());
 
   const exportSongs = useCallback(
     (format: ExportFormat) => {
@@ -958,6 +1016,29 @@ export default function Home() {
               擷取歌曲
             </button>
           </div>
+          {recentImports.length > 0 && (
+            <div className="recent-imports" aria-label="近期匯入歌單">
+              <span className="recent-imports-label">近期匯入（本機）</span>
+              <div className="recent-imports-list">
+                {recentImports.map((entry) => (
+                  <button
+                    key={`${entry.service}-${entry.url}`}
+                    type="button"
+                    className={`recent-import ${serviceMeta[entry.service].className}`}
+                    onClick={() => {
+                      setConfig((previous) => ({ ...previous, category: CUSTOM_PLAYLIST, pastedService: entry.service, pastedUrl: entry.url }));
+                      void importPastedPlaylist(entry.service, entry.url);
+                    }}
+                    title={`重新讀取 ${entry.title}（${entry.songCount} 首）`}
+                  >
+                    <span>{serviceMeta[entry.service].compact}</span>
+                    <b>{entry.title}</b>
+                    <em>{entry.songCount} 首</em>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </section>
 
         {showSettings && (
@@ -1023,6 +1104,15 @@ export default function Home() {
               </div>
             </div>
           </div>
+          {!searchActive && (status === "loading" || importProgress.songCount !== null) && (
+            <div className={`import-progress ${status === "loading" ? "is-loading" : "is-complete"}`} role="status" aria-live="polite">
+              <div className="import-progress-copy">
+                <span>{importProgress.message}</span>
+                <b>{status === "loading" ? "處理中" : `${importProgress.songCount} 首已就緒`}</b>
+              </div>
+              <div className="import-progress-track" aria-hidden="true"><i /></div>
+            </div>
+          )}
           <div className="search-strip">
             <div className="search-field">
               {isSearching ? <LoaderCircle size={17} className="animate-spin text-slate-500" /> : <Search size={17} />}
@@ -1038,7 +1128,7 @@ export default function Home() {
             {!searchActive && status === "loading" && <div className="empty-state"><LoaderCircle size={26} className="animate-spin" /><p>正在整理歌曲清單</p></div>}
             {!searchActive && status !== "loading" && displayList.length === 0 && <div className="empty-state"><ListMusic size={26} /><p>貼上公開歌單，或重新整理 Apple Music 來源。</p></div>}
 
-            {displayList.map((song, index) => {
+            {visibleList.map((song, index) => {
               const service = serviceMeta[song.source];
               const isPlaying = playingId === song.id;
               const sending = sendingMap[song.id];
@@ -1063,6 +1153,16 @@ export default function Home() {
                 </article>
               );
             })}
+            {!searchActive && visibleList.length < displayList.length && (
+              <button
+                type="button"
+                className="show-more-songs"
+                onClick={() => setVisibleSongLimit((current) => nextVisibleSongCount(current, displayList.length))}
+              >
+                顯示下一組 {Math.min(SONGS_PER_RENDER_BATCH, displayList.length - visibleList.length)} 首
+                <span>已顯示 {visibleList.length}／{displayList.length} 首</span>
+              </button>
+            )}
             {searchActive && <div ref={observerTarget} className="load-more">{isFetchingMore && <LoaderCircle size={18} className="animate-spin" />}</div>}
           </div>
         </section>
