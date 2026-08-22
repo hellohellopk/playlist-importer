@@ -8,6 +8,7 @@ import {
   AlertCircle,
   Check,
   ChevronDown,
+  Download,
   ExternalLink,
   Link as LinkIcon,
   ListMusic,
@@ -25,6 +26,7 @@ import {
 
 type Service = "apple" | "spotify";
 type Status = "idle" | "loading" | "done" | "error";
+type ExportFormat = "csv" | "json" | "txt";
 
 type Song = {
   id: string;
@@ -110,6 +112,32 @@ function cleanUrl(url: string) {
   } catch {
     return url;
   }
+}
+
+function csvCell(value: string) {
+  return `"${value.replace(/"/g, '""')}"`;
+}
+
+function safeFileStem(value: string) {
+  const stem = value
+    .replace(/[\\/:*?"<>|]/g, " ")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 72);
+  return stem || "playlist";
+}
+
+function downloadExport(content: string, type: string, filename: string) {
+  const blob = new Blob([content], { type: `${type};charset=utf-8` });
+  const href = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = href;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(href), 0);
 }
 
 async function fetchData(url: string) {
@@ -386,6 +414,7 @@ export default function Home() {
   const [loadingAudioId, setLoadingAudioId] = useState<string | null>(null);
   const [sendingMap, setSendingMap] = useState<Record<string, "sending" | "success" | "error" | undefined>>({});
   const [playlistName, setPlaylistName] = useState("必聽新歌");
+  const [lastExportFormat, setLastExportFormat] = useState<ExportFormat | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const observerTarget = useRef<HTMLDivElement | null>(null);
   const searchCache = useRef<Record<string, { timestamp: number; data: Song[] }>>({});
@@ -719,6 +748,53 @@ export default function Home() {
   const currentService: Service = config.category === CUSTOM_PLAYLIST ? config.pastedService : "apple";
   const searchActive = Boolean(searchTerm.trim());
 
+  const exportSongs = useCallback(
+    (format: ExportFormat) => {
+      if (!displayList.length) {
+        addLog("提示：目前沒有可匯出的歌曲。");
+        return;
+      }
+
+      const exportedAt = new Date().toISOString();
+      const sourceLabel = searchActive ? "Apple Music 搜尋結果" : serviceMeta[currentService].label;
+      const baseName = `${safeFileStem(activeLabel)}-${new Date().toISOString().slice(0, 10)}`;
+      const tracks = displayList.map((song, index) => ({
+        index: index + 1,
+        title: song.name,
+        artist: song.artist,
+        service: serviceMeta[song.source].label,
+        url: song.url,
+        previewUrl: song.preview || "",
+        coverUrl: song.img || "",
+      }));
+
+      if (format === "csv") {
+        const headers = ["序號", "歌曲", "歌手", "服務", "連結", "試聽連結", "封面連結"];
+        const rows = tracks.map((track) => [track.index, track.title, track.artist, track.service, track.url, track.previewUrl, track.coverUrl].map((cell) => csvCell(String(cell))).join(","));
+        downloadExport(`\uFEFF${headers.map(csvCell).join(",")}\n${rows.join("\n")}\n`, "text/csv", `${baseName}.csv`);
+      }
+
+      if (format === "json") {
+        downloadExport(
+          `${JSON.stringify({ playlist: activeLabel, source: sourceLabel, exportedAt, trackCount: tracks.length, tracks }, null, 2)}\n`,
+          "application/json",
+          `${baseName}.json`,
+        );
+      }
+
+      if (format === "txt") {
+        const header = [`歌單：${activeLabel}`, `來源：${sourceLabel}`, `匯出時間：${exportedAt}`, `曲目數：${tracks.length}`].join("\n");
+        const rows = tracks.map((track) => `${String(track.index).padStart(2, "0")}. ${track.title} — ${track.artist}\n${track.service}｜${track.url}`).join("\n\n");
+        downloadExport(`\uFEFF${header}\n\n${rows}\n`, "text/plain", `${baseName}.txt`);
+      }
+
+      setLastExportFormat(format);
+      window.setTimeout(() => setLastExportFormat((current) => (current === format ? null : current)), 2200);
+      addLog(`完成：已匯出 ${tracks.length} 首歌曲為 ${format.toUpperCase()}。`);
+    },
+    [activeLabel, addLog, currentService, displayList, searchActive],
+  );
+
   return (
     <main className="min-h-screen px-4 py-7 sm:px-6 lg:py-10">
       <section className="app-shell mx-auto max-w-5xl">
@@ -855,7 +931,24 @@ export default function Home() {
               <p className="eyebrow">目前歌曲</p>
               <h2>{searchActive ? "Apple Music 搜尋結果" : activeLabel}</h2>
             </div>
-            <span className="song-count">{displayList.length} 首</span>
+            <div className="workspace-tools">
+              <span className="song-count">{displayList.length} 首</span>
+              <div className="export-group" role="group" aria-label="匯出目前歌曲">
+                <span className="export-label"><Download size={13} /> 匯出</span>
+                {(["csv", "json", "txt"] as ExportFormat[]).map((format) => (
+                  <button
+                    key={format}
+                    type="button"
+                    className={`export-button ${lastExportFormat === format ? "is-done" : ""}`}
+                    onClick={() => exportSongs(format)}
+                    disabled={!displayList.length}
+                    aria-label={`將目前 ${displayList.length} 首歌曲匯出為 ${format.toUpperCase()}`}
+                  >
+                    {lastExportFormat === format ? <Check size={12} /> : format.toUpperCase()}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
           <div className="search-strip">
             <div className="search-field">
