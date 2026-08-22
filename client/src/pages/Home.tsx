@@ -8,6 +8,7 @@ import {
   AlertCircle,
   Check,
   ChevronDown,
+  Copy,
   Download,
   ExternalLink,
   Link as LinkIcon,
@@ -32,6 +33,8 @@ import {
   type RecentPlaylistImport,
   visibleSongCount,
 } from "@/lib/playlistLargeList";
+import { exportScopeLabel, selectExportSongs, type ExportScope } from "@/lib/playlistExportScope";
+import { songClipboardText, writeClipboardText } from "@/lib/songClipboard";
 
 type Service = "apple" | "spotify";
 type Status = "idle" | "loading" | "done" | "error";
@@ -484,9 +487,11 @@ export default function Home() {
   const [hasMore, setHasMore] = useState(false);
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [loadingAudioId, setLoadingAudioId] = useState<string | null>(null);
+  const [copiedSongId, setCopiedSongId] = useState<string | null>(null);
   const [sendingMap, setSendingMap] = useState<Record<string, "sending" | "success" | "error" | undefined>>({});
   const [playlistName, setPlaylistName] = useState("必聽新歌");
   const [lastExportFormat, setLastExportFormat] = useState<ExportFormat | null>(null);
+  const [exportScope, setExportScope] = useState<ExportScope>("all");
   const [recentImports, setRecentImports] = useState<RecentPlaylistImport[]>(getInitialRecentImports);
   const [visibleSongLimit, setVisibleSongLimit] = useState(SONGS_PER_RENDER_BATCH);
   const [importProgress, setImportProgress] = useState<{ message: string; songCount: number | null }>({
@@ -869,6 +874,33 @@ export default function Home() {
     [config.tgToken, config.tgChatId, sendingMap, addLog],
   );
 
+  const copySongInfo = useCallback(
+    async (song: Song) => {
+      const copyFallback = () => {
+        const input = document.createElement("textarea");
+        input.value = songClipboardText(song);
+        input.setAttribute("readonly", "");
+        input.style.position = "fixed";
+        input.style.opacity = "0";
+        document.body.appendChild(input);
+        input.select();
+        const copied = document.execCommand("copy");
+        input.remove();
+        if (!copied) throw new Error("瀏覽器未允許複製");
+      };
+
+      try {
+        await writeClipboardText(songClipboardText(song), navigator.clipboard?.writeText?.bind(navigator.clipboard), copyFallback);
+        setCopiedSongId(song.id);
+        window.setTimeout(() => setCopiedSongId((current) => (current === song.id ? null : current)), 2200);
+        addLog(`完成：已複製「${song.name}」的歌曲資訊與連結。`);
+      } catch {
+        addLog(`錯誤：無法複製「${song.name}」。請檢查瀏覽器剪貼簿權限。`);
+      }
+    },
+    [addLog],
+  );
+
   const displayList = useMemo(() => {
     const list = searchTerm.trim() ? searchSongs : roomSongs;
     return list.filter((song) => !onlyChinese || /[\u4e00-\u9fff]/.test(`${song.name}${song.artist}`));
@@ -887,18 +919,22 @@ export default function Home() {
   }, [config.category, playlistName, topPlaylists]);
 
   const currentService: Service = config.category === CUSTOM_PLAYLIST ? config.pastedService : "apple";
+  const exportableSongs = useMemo(() => selectExportSongs(exportScope, roomSongs, displayList), [displayList, exportScope, roomSongs]);
+  const selectedExportScopeLabel = exportScopeLabel(exportScope);
+  const exportSourceLabel = exportScope === "filtered"
+    ? `${searchActive ? "Apple Music 搜尋結果" : serviceMeta[currentService].label}／目前篩選`
+    : `${serviceMeta[currentService].label}／完整歌單`;
 
   const exportSongs = useCallback(
     (format: ExportFormat) => {
-      if (!displayList.length) {
+      if (!exportableSongs.length) {
         addLog("提示：目前沒有可匯出的歌曲。");
         return;
       }
 
       const exportedAt = new Date().toISOString();
-      const sourceLabel = searchActive ? "Apple Music 搜尋結果" : serviceMeta[currentService].label;
-      const baseName = `${safeFileStem(activeLabel)}-${new Date().toISOString().slice(0, 10)}`;
-      const tracks = displayList.map((song, index) => ({
+      const baseName = `${safeFileStem(activeLabel)}-${exportScope}-${new Date().toISOString().slice(0, 10)}`;
+      const tracks = exportableSongs.map((song, index) => ({
         index: index + 1,
         title: song.name,
         artist: song.artist,
@@ -916,23 +952,23 @@ export default function Home() {
 
       if (format === "json") {
         downloadExport(
-          `${JSON.stringify({ playlist: activeLabel, source: sourceLabel, exportedAt, trackCount: tracks.length, tracks }, null, 2)}\n`,
+          `${JSON.stringify({ playlist: activeLabel, source: exportSourceLabel, exportScope, exportedAt, trackCount: tracks.length, tracks }, null, 2)}\n`,
           "application/json",
           `${baseName}.json`,
         );
       }
 
       if (format === "txt") {
-        const header = [`歌單：${activeLabel}`, `來源：${sourceLabel}`, `匯出時間：${exportedAt}`, `曲目數：${tracks.length}`].join("\n");
+        const header = [`歌單：${activeLabel}`, `來源：${exportSourceLabel}`, `匯出範圍：${selectedExportScopeLabel}`, `匯出時間：${exportedAt}`, `曲目數：${tracks.length}`].join("\n");
         const rows = tracks.map((track) => `${String(track.index).padStart(2, "0")}. ${track.title} — ${track.artist}\n${track.service}｜${track.url}`).join("\n\n");
         downloadExport(`\uFEFF${header}\n\n${rows}\n`, "text/plain", `${baseName}.txt`);
       }
 
       setLastExportFormat(format);
       window.setTimeout(() => setLastExportFormat((current) => (current === format ? null : current)), 2200);
-      addLog(`完成：已匯出 ${tracks.length} 首歌曲為 ${format.toUpperCase()}。`);
+      addLog(`完成：已匯出${selectedExportScopeLabel} ${tracks.length} 首歌曲為 ${format.toUpperCase()}。`);
     },
-    [activeLabel, addLog, currentService, displayList, searchActive],
+    [activeLabel, addLog, exportScope, exportSourceLabel, exportableSongs, selectedExportScopeLabel],
   );
 
   return (
@@ -1089,14 +1125,33 @@ export default function Home() {
               <span className="song-count">{displayList.length} 首</span>
               <div className="export-group" role="group" aria-label="匯出目前歌曲">
                 <span className="export-label"><Download size={13} /> 匯出</span>
+                <div className="export-scope" role="group" aria-label="選擇匯出範圍">
+                  {(["all", "filtered"] as ExportScope[]).map((scope) => {
+                    const count = scope === "all" ? roomSongs.length : displayList.length;
+                    const label = exportScopeLabel(scope);
+                    return (
+                      <button
+                        key={scope}
+                        type="button"
+                        className={`export-scope-button ${exportScope === scope ? "selected" : ""}`}
+                        onClick={() => setExportScope(scope)}
+                        disabled={!count}
+                        aria-pressed={exportScope === scope}
+                        title={`${label}：${count} 首`}
+                      >
+                        {label} {count}
+                      </button>
+                    );
+                  })}
+                </div>
                 {(["csv", "json", "txt"] as ExportFormat[]).map((format) => (
                   <button
                     key={format}
                     type="button"
                     className={`export-button ${lastExportFormat === format ? "is-done" : ""}`}
                     onClick={() => exportSongs(format)}
-                    disabled={!displayList.length}
-                    aria-label={`將目前 ${displayList.length} 首歌曲匯出為 ${format.toUpperCase()}`}
+                    disabled={!exportableSongs.length}
+                    aria-label={`將${selectedExportScopeLabel} ${exportableSongs.length} 首歌曲匯出為 ${format.toUpperCase()}`}
                   >
                     {lastExportFormat === format ? <Check size={12} /> : format.toUpperCase()}
                   </button>
@@ -1147,6 +1202,15 @@ export default function Home() {
                   </button>
                   <span className={`song-source ${service.className}`} title={service.label}>{service.compact}</span>
                   <a className="open-link" href={song.url} target="_blank" rel="noreferrer" aria-label={`在 ${service.label} 開啟 ${song.name}`}><ExternalLink size={16} /></a>
+                  <button
+                    type="button"
+                    className={`copy-button ${copiedSongId === song.id ? "copied" : ""}`}
+                    onClick={() => void copySongInfo(song)}
+                    aria-label={`複製 ${song.name} 的歌曲資訊與連結`}
+                    title={copiedSongId === song.id ? "已複製" : "複製歌曲資訊與連結"}
+                  >
+                    {copiedSongId === song.id ? <Check size={16} /> : <Copy size={16} />}
+                  </button>
                   <button type="button" className={`send-button ${sending === "success" ? "sent" : sending === "error" ? "failed" : ""}`} onClick={() => void sendToTelegram(song)} aria-label={`傳送 ${song.name} 到 Telegram`}>
                     {sending === "sending" ? <LoaderCircle size={16} className="animate-spin" /> : sending === "success" ? <Check size={16} /> : <Send size={16} />}
                   </button>

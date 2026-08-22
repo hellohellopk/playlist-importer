@@ -60,7 +60,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 .icon-button { display: grid; place-items: center; width: 2rem; height: 2rem; border: 1px solid transparent; border-radius: .65rem; color: #64748b; background: transparent; transition: transform .16s cubic-bezier(.23,1,.32,1), background .16s ease, color .16s ease, border-color .16s ease; }
 .icon-button:hover { color: #334155; background: rgba(255,255,255,.9); border-color: rgba(148,163,184,.28); }
 .icon-button.is-active { color: #2f67a7; background: #edf5ff; border-color: #c6ddf5; }
-.icon-button:active, .import-button:active, .service-choice:active, .filter-button:active, .send-button:active, .export-button:active { transform: scale(.97); }
+.icon-button:active, .import-button:active, .service-choice:active, .filter-button:active, .copy-button:active, .send-button:active, .export-button:active, .export-scope-button:active { transform: scale(.97); }
 .log-panel { min-height: 5.35rem; padding: .62rem 1rem; background: linear-gradient(100deg, #fbfcfd, #f6f8fa); font-family: "IBM Plex Mono", monospace; font-size: .7rem; line-height: 1.5; }
 .log-panel p { margin: 0; color: #64748b; }
 .log-panel p span { display: inline-block; width: 1rem; color: #94a3b8; }
@@ -139,6 +139,11 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 .workspace-tools { display: flex; align-items: center; justify-content: flex-end; gap: .45rem; flex-wrap: wrap; }
 .export-group { display: inline-flex; align-items: center; min-height: 1.72rem; gap: .18rem; padding: .17rem; border: 1px solid #dce4eb; border-radius: .65rem; background: #fbfcfd; box-shadow: inset 0 1px 0 rgba(255,255,255,.85); }
 .export-label { display: inline-flex; align-items: center; gap: .28rem; padding: 0 .26rem 0 .18rem; color: #7b8999; font-family: "IBM Plex Mono", monospace; font-size: .58rem; font-weight: 600; }
+.export-scope { display: inline-flex; align-items: center; gap: .12rem; padding: .08rem; border: 1px solid #e1e8ed; border-radius: .45rem; background: #f4f7f9; }
+.export-scope-button { min-height: 1.25rem; padding: 0 .34rem; border: 1px solid transparent; border-radius: .32rem; color: #6c7b8b; background: transparent; font-family: "IBM Plex Mono", monospace; font-size: .54rem; font-weight: 700; white-space: nowrap; transition: transform .16s cubic-bezier(.23,1,.32,1), color .16s ease, border-color .16s ease, background .16s ease; }
+.export-scope-button:hover:not(:disabled) { color: #2c679f; background: #edf5fb; }
+.export-scope-button.selected { border-color: #b9d6c6; color: #25714e; background: #ffffff; box-shadow: 0 1px 2px rgba(33,83,57,.12); }
+.export-scope-button:disabled { cursor: not-allowed; opacity: .42; }
 .export-button { display: inline-flex; align-items: center; justify-content: center; min-width: 2.3rem; min-height: 1.35rem; padding: 0 .32rem; border: 1px solid transparent; border-radius: .38rem; color: #55677a; background: transparent; font-family: "IBM Plex Mono", monospace; font-size: .58rem; font-weight: 700; letter-spacing: .015em; transition: transform .16s cubic-bezier(.23,1,.32,1), color .16s ease, border-color .16s ease, background .16s ease; }
 .export-button:hover:not(:disabled) { border-color: #c9d8e6; color: #2c679f; background: #f0f7fc; }
 .export-button.is-done { border-color: #bce4cf; color: #247750; background: #effaf4; }
@@ -162,7 +167,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 .filter-button:hover { color: #334155; background: #f8fafc; }
 .filter-button.selected { color: white; border-color: #386ba6; background: #4379b9; }
 .song-list { display: grid; gap: .5rem; margin-top: .85rem; }
-.song-row { position: relative; display: grid; grid-template-columns: 2.75rem 1.8rem minmax(0, 1fr) auto auto auto; align-items: center; gap: .55rem; min-height: 4rem; padding: .5rem .52rem .5rem .5rem; border: 1px solid #e0e7ee; border-radius: .95rem; background: rgba(252,253,253,.88); box-shadow: inset 2px 0 0 #e7edf1, 0 3px 8px rgba(30,41,59,.022); transition: transform .18s cubic-bezier(.23,1,.32,1), box-shadow .18s ease, background .18s ease; }
+.song-row { position: relative; display: grid; grid-template-columns: 2.75rem 1.8rem minmax(0, 1fr) auto auto auto auto; align-items: center; gap: .55rem; min-height: 4rem; padding: .5rem .52rem .5rem .5rem; border: 1px solid #e0e7ee; border-radius: .95rem; background: rgba(252,253,253,.88); box-shadow: inset 2px 0 0 #e7edf1, 0 3px 8px rgba(30,41,59,.022); transition: transform .18s cubic-bezier(.23,1,.32,1), box-shadow .18s ease, background .18s ease; }
 .song-row:hover { transform: translateY(-2px); background: #fff; box-shadow: inset 2px 0 0 #aebdca, 0 10px 18px rgba(30,41,59,.07); }
 .cover-button { position: relative; width: 2.75rem; height: 2.75rem; overflow: hidden; border: 0; border-radius: .68rem; color: white; background: #dfe7ed; }
 .cover-button img { display: block; width: 100%; height: 100%; object-fit: cover; }
@@ -175,8 +180,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 .song-info strong { color: #273548; font-size: .82rem; font-weight: 800; }
 .song-info span { margin-top: .12rem; color: #718096; font-size: .68rem; font-weight: 600; }
 .song-source { justify-content: center; width: 1.7rem; min-height: 1.25rem; padding: 0 .2rem; border: 0; font-size: .52rem; letter-spacing: -.07em; }
-.open-link, .send-button { display: grid; place-items: center; width: 2rem; height: 2rem; border: 1px solid rgba(148,163,184,.25); border-radius: .62rem; color: #64748b; background: rgba(255,255,255,.75); transition: color .16s ease, border-color .16s ease, background .16s ease, transform .16s cubic-bezier(.23,1,.32,1); }
+.open-link, .copy-button, .send-button { display: grid; place-items: center; width: 2rem; height: 2rem; border: 1px solid rgba(148,163,184,.25); border-radius: .62rem; color: #64748b; background: rgba(255,255,255,.75); transition: color .16s ease, border-color .16s ease, background .16s ease, transform .16s cubic-bezier(.23,1,.32,1); }
 .open-link:hover { color: #2d659f; border-color: #b9d1e9; background: white; }
+.copy-button:hover { color: #7b5aa8; border-color: #d6c7ea; background: #fbf8ff; }
+.copy-button.copied { color: #268056; border-color: #bce4cf; background: #effaf4; }
 .send-button:hover { color: #287aa1; border-color: #b9d9e9; background: white; }
 .send-button.sent { color: #268056; border-color: #bce4cf; background: #effaf4; }
 .send-button.failed { color: #c2414c; border-color: #f1c4c8; background: #fff3f4; }
@@ -192,5 +199,5 @@ button:focus-visible, input:focus-visible, select:focus-visible, a:focus-visible
 @keyframes pulse { 50% { opacity: .45; } }
 @keyframes scan-progress { from { transform: translateX(-45%); } to { transform: translateX(160%); } }
 @media (min-width: 640px) { .app-shell { padding: 0 1.25rem 3rem; } .terminal-bar { padding-left: 1.2rem; } .intro-panel { padding: 1.9rem 2rem; } .import-panel, .settings-panel, .song-workspace { padding: 1.35rem; } .settings-grid { grid-template-columns: 1fr 1fr; } }
-@media (max-width: 440px) { .intro-art { width: 84%; opacity: .42; } .workspace-head { align-items: flex-start; } .workspace-tools { justify-content: flex-end; gap: .32rem; } .export-label { display: none; } .song-row { grid-template-columns: 2.65rem minmax(0, 1fr) auto auto; gap: .45rem; } .song-order, .song-source { display: none; } .song-info strong { font-size: .78rem; } .open-link, .send-button { width: 1.9rem; height: 1.9rem; } .import-footer { align-items: flex-end; } .import-footer p { max-width: 12rem; } .recent-imports { grid-template-columns: 1fr; gap: .28rem; } .recent-imports-label { padding-top: 0; } .import-progress-copy { align-items: flex-start; flex-direction: column; gap: .2rem; } }
+@media (max-width: 440px) { .intro-art { width: 84%; opacity: .42; } .workspace-head { align-items: flex-start; } .workspace-tools { justify-content: flex-end; gap: .32rem; } .export-label { display: none; } .export-group { gap: .12rem; } .export-scope-button { padding: 0 .26rem; font-size: .51rem; } .song-row { grid-template-columns: 2.65rem minmax(0, 1fr) auto auto auto; gap: .45rem; } .song-order, .song-source { display: none; } .song-info strong { font-size: .78rem; } .open-link, .copy-button, .send-button { width: 1.9rem; height: 1.9rem; } .import-footer { align-items: flex-end; } .import-footer p { max-width: 12rem; } .recent-imports { grid-template-columns: 1fr; gap: .28rem; } .recent-imports-label { padding-top: 0; } .import-progress-copy { align-items: flex-start; flex-direction: column; gap: .2rem; } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
