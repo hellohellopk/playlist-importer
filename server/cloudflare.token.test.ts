@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 describe("Cloudflare Worker 部署權杖", () => {
-  it("可通過 Cloudflare 的權杖驗證端點", async () => {
-    const token = process.env.CLOUDFLARE_API_TOKEN;
+  const token = process.env.CLOUDFLARE_API_TOKEN;
+  const validatesWhenConfigured = token ? it : it.skip;
+
+  validatesWhenConfigured("可通過 Cloudflare 的權杖驗證端點", async () => {
     expect(token, "缺少 CLOUDFLARE_API_TOKEN").toBeTruthy();
 
     const response = await fetch("https://api.cloudflare.com/client/v4/user/tokens/verify", {
