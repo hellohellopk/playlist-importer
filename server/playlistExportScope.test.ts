@@ -18,4 +18,9 @@ describe("playlist export scope", () => {
     expect(allSongs).toEqual(["A", "B", "C", "D"]);
     expect(exportScopeLabel("filtered")).toBe("目前篩選");
   });
+
+  it("selects only explicitly selected songs for the selected scope", () => {
+    expect(selectExportSongs("selected", allSongs, filteredSongs, ["A", "D"])).toEqual(["A", "D"]);
+    expect(exportScopeLabel("selected")).toBe("已選歌曲");
+  });
 });

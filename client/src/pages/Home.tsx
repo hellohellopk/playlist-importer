@@ -34,7 +34,8 @@ import {
   visibleSongCount,
 } from "@/lib/playlistLargeList";
 import { exportScopeLabel, selectExportSongs, type ExportScope } from "@/lib/playlistExportScope";
-import { songClipboardText, writeClipboardText } from "@/lib/songClipboard";
+import { songClipboardText, songsClipboardText, writeClipboardText } from "@/lib/songClipboard";
+import { replaceSelectedSongKeys, selectSongKeys, songSelectionKey, toggleSongSelection } from "@/lib/songSelection";
 
 type Service = "apple" | "spotify";
 type Status = "idle" | "loading" | "done" | "error";
@@ -201,6 +202,19 @@ function downloadExport(content: string, type: string, filename: string) {
   anchor.click();
   anchor.remove();
   window.setTimeout(() => URL.revokeObjectURL(href), 0);
+}
+
+function copyTextFallback(value: string) {
+  const input = document.createElement("textarea");
+  input.value = value;
+  input.setAttribute("readonly", "");
+  input.style.position = "fixed";
+  input.style.opacity = "0";
+  document.body.appendChild(input);
+  input.select();
+  const copied = document.execCommand("copy");
+  input.remove();
+  if (!copied) throw new Error("瀏覽器未允許複製");
 }
 
 async function fetchData(url: string) {
@@ -488,6 +502,8 @@ export default function Home() {
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [loadingAudioId, setLoadingAudioId] = useState<string | null>(null);
   const [copiedSongId, setCopiedSongId] = useState<string | null>(null);
+  const [copiedSelection, setCopiedSelection] = useState(false);
+  const [selectedSongKeys, setSelectedSongKeys] = useState<Set<string>>(() => new Set());
   const [sendingMap, setSendingMap] = useState<Record<string, "sending" | "success" | "error" | undefined>>({});
   const [playlistName, setPlaylistName] = useState("必聽新歌");
   const [lastExportFormat, setLastExportFormat] = useState<ExportFormat | null>(null);
@@ -558,6 +574,7 @@ export default function Home() {
 
       setStatus("loading");
       setSearchTerm("");
+      setSelectedSongKeys(new Set());
       if (!isRefresh) setRoomSongs([]);
       setVisibleSongLimit(SONGS_PER_RENDER_BATCH);
       setImportProgress({ message: `${serviceMeta[service].label}：正在建立公開讀取連線`, songCount: null });
@@ -657,6 +674,7 @@ export default function Home() {
     setStatus("loading");
     setRoomSongs([]);
     setSearchTerm("");
+    setSelectedSongKeys(new Set());
     setVisibleSongLimit(SONGS_PER_RENDER_BATCH);
     setImportProgress({ message: "Apple Music：正在建立完整曲目讀取連線", songCount: null });
     const selectedCategory = CATEGORIES[config.category];
@@ -876,21 +894,8 @@ export default function Home() {
 
   const copySongInfo = useCallback(
     async (song: Song) => {
-      const copyFallback = () => {
-        const input = document.createElement("textarea");
-        input.value = songClipboardText(song);
-        input.setAttribute("readonly", "");
-        input.style.position = "fixed";
-        input.style.opacity = "0";
-        document.body.appendChild(input);
-        input.select();
-        const copied = document.execCommand("copy");
-        input.remove();
-        if (!copied) throw new Error("瀏覽器未允許複製");
-      };
-
       try {
-        await writeClipboardText(songClipboardText(song), navigator.clipboard?.writeText?.bind(navigator.clipboard), copyFallback);
+        await writeClipboardText(songClipboardText(song), navigator.clipboard?.writeText?.bind(navigator.clipboard), () => copyTextFallback(songClipboardText(song)));
         setCopiedSongId(song.id);
         window.setTimeout(() => setCopiedSongId((current) => (current === song.id ? null : current)), 2200);
         addLog(`完成：已複製「${song.name}」的歌曲資訊與連結。`);
@@ -911,6 +916,40 @@ export default function Home() {
     () => (searchActive ? displayList : displayList.slice(0, visibleSongCount(displayList.length, visibleSongLimit))),
     [displayList, searchActive, visibleSongLimit],
   );
+  const selectionSourceSongs = searchActive ? searchSongs : roomSongs;
+  const selectedSongs = useMemo(() => selectSongKeys(selectionSourceSongs, selectedSongKeys), [selectedSongKeys, selectionSourceSongs]);
+  const selectedSongCount = selectedSongs.length;
+
+  const toggleSelectedSong = useCallback((song: Song) => {
+    setSelectedSongKeys((current) => toggleSongSelection(current, songSelectionKey(song)));
+  }, []);
+
+  const selectAllVisibleSongs = useCallback(() => {
+    setSelectedSongKeys(replaceSelectedSongKeys(visibleList));
+    addLog(`已選取目前顯示的 ${visibleList.length} 首歌曲。`);
+  }, [addLog, visibleList]);
+
+  const clearSelectedSongs = useCallback(() => {
+    setSelectedSongKeys(new Set());
+    addLog("已清除歌曲選取。");
+  }, [addLog]);
+
+  const copySelectedSongs = useCallback(async () => {
+    if (!selectedSongs.length) {
+      addLog("提示：請先勾選要批量複製的歌曲。");
+      return;
+    }
+
+    const text = songsClipboardText(selectedSongs);
+    try {
+      await writeClipboardText(text, navigator.clipboard?.writeText?.bind(navigator.clipboard), () => copyTextFallback(text));
+      setCopiedSelection(true);
+      window.setTimeout(() => setCopiedSelection(false), 2200);
+      addLog(`完成：已批量複製 ${selectedSongs.length} 首歌曲的資訊與連結。`);
+    } catch {
+      addLog("錯誤：無法批量複製歌曲。請檢查瀏覽器剪貼簿權限。");
+    }
+  }, [addLog, selectedSongs]);
 
   const activeLabel = useMemo(() => {
     if (config.category === CUSTOM_PLAYLIST) return playlistName || "自訂歌單";
@@ -919,11 +958,11 @@ export default function Home() {
   }, [config.category, playlistName, topPlaylists]);
 
   const currentService: Service = config.category === CUSTOM_PLAYLIST ? config.pastedService : "apple";
-  const exportableSongs = useMemo(() => selectExportSongs(exportScope, roomSongs, displayList), [displayList, exportScope, roomSongs]);
+  const exportableSongs = useMemo(() => selectExportSongs(exportScope, roomSongs, displayList, selectedSongs), [displayList, exportScope, roomSongs, selectedSongs]);
   const selectedExportScopeLabel = exportScopeLabel(exportScope);
-  const exportSourceLabel = exportScope === "filtered"
-    ? `${searchActive ? "Apple Music 搜尋結果" : serviceMeta[currentService].label}／目前篩選`
-    : `${serviceMeta[currentService].label}／完整歌單`;
+  const exportSourceLabel = exportScope === "all"
+    ? `${serviceMeta[currentService].label}／完整歌單`
+    : `${searchActive ? "Apple Music 搜尋結果" : serviceMeta[currentService].label}／${selectedExportScopeLabel}`;
 
   const exportSongs = useCallback(
     (format: ExportFormat) => {
@@ -1126,8 +1165,8 @@ export default function Home() {
               <div className="export-group" role="group" aria-label="匯出目前歌曲">
                 <span className="export-label"><Download size={13} /> 匯出</span>
                 <div className="export-scope" role="group" aria-label="選擇匯出範圍">
-                  {(["all", "filtered"] as ExportScope[]).map((scope) => {
-                    const count = scope === "all" ? roomSongs.length : displayList.length;
+                  {(["all", "filtered", "selected"] as ExportScope[]).map((scope) => {
+                    const count = scope === "all" ? roomSongs.length : scope === "filtered" ? displayList.length : selectedSongCount;
                     const label = exportScopeLabel(scope);
                     return (
                       <button
@@ -1168,6 +1207,24 @@ export default function Home() {
               <div className="import-progress-track" aria-hidden="true"><i /></div>
             </div>
           )}
+          <div className="selection-toolbar" aria-label="歌曲多選操作">
+            <div className="selection-summary">
+              <span>多選</span>
+              <b>{selectedSongCount} 首已選</b>
+            </div>
+            <div className="selection-actions">
+              <button type="button" className="selection-button" onClick={selectAllVisibleSongs} disabled={!visibleList.length}>
+                全選目前顯示 {visibleList.length}
+              </button>
+              <button type="button" className="selection-button" onClick={clearSelectedSongs} disabled={!selectedSongCount}>
+                清除
+              </button>
+              <button type="button" className={`selection-copy-button ${copiedSelection ? "is-done" : ""}`} onClick={() => void copySelectedSongs()} disabled={!selectedSongCount}>
+                {copiedSelection ? <Check size={14} /> : <Copy size={14} />}
+                批量複製 {selectedSongCount}
+              </button>
+            </div>
+          </div>
           <div className="search-strip">
             <div className="search-field">
               {isSearching ? <LoaderCircle size={17} className="animate-spin text-slate-500" /> : <Search size={17} />}
@@ -1187,8 +1244,14 @@ export default function Home() {
               const service = serviceMeta[song.source];
               const isPlaying = playingId === song.id;
               const sending = sendingMap[song.id];
+              const selectionKey = songSelectionKey(song);
+              const selected = selectedSongKeys.has(selectionKey);
               return (
-                <article key={`${song.id}-${index}`} className="song-row" style={{ "--song-accent": song.accent } as React.CSSProperties}>
+                <article key={`${song.id}-${index}`} className={`song-row ${selected ? "selected" : ""}`} style={{ "--song-accent": song.accent } as React.CSSProperties}>
+                  <label className="song-select" title={selected ? `取消勾選 ${song.name}` : `勾選 ${song.name}`}>
+                    <input type="checkbox" checked={selected} onChange={() => toggleSelectedSong(song)} aria-label={`${selected ? "取消勾選" : "勾選"} ${song.name}`} />
+                    <span aria-hidden="true"><Check size={12} /></span>
+                  </label>
                   <button type="button" className="cover-button" onClick={() => void togglePlay(song)} aria-label={`${isPlaying ? "停止" : "播放"} ${song.name}`}>
                     {song.img ? <img src={song.img} alt={`${song.name} 封面`} loading="lazy" /> : <span className="cover-fallback"><Music2 size={18} /></span>}
                     <span className="cover-action">
