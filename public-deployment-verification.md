@@ -14,3 +14,10 @@
 - 公開網站實際切換至 Spotify、貼上連結並匯入後，歌曲區顯示 **500 首**，並正確顯示 Spotify 曲目網址與封面。
 - CSV、JSON、TXT 匯出按鈕均同步更新為「目前 500 首歌曲」。未授權來源的 CORS 回應為 `null` 並取得 403。
 - 已由公開 GitHub Pages 點擊 JSON 匯出並完成下載 `500-Greatest-Songs-Of-All-Time-2026-08-22.json`。
+
+## 使用者提供 Spotify 歌單驗證（2026-08-22）
+
+- 歌單：`我的播放清單 #1`（`3663TtahXhQOqSId7Rfd7c`）。
+- 使用者提供的公開頁面原始碼含有 100 個 `music:song` Open Graph 標記；這些標記僅提供首批資料，不足以作為完整曲目清單。
+- 已發布 Worker 對相同公開歌單回傳 **1,362 首**歌曲，HTTP 200，且 CORS 正確限制為 GitHub Pages 來源。
+- 公開 GitHub Pages 實際貼上相同連結後顯示 **1,362 首**，第一批曲目與附件的 Open Graph 標記相符；CSV、JSON、TXT 匯出控制同步顯示 1,362 首。
