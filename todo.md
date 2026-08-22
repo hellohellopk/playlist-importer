@@ -17,3 +17,9 @@
 - [x] 安全取得 Cloudflare API Token 並驗證其可部署 Workers。
 - [x] 改用 Cloudflare API Token 完成 Worker 部署授權，避開內嵌登入驗證失敗。
 - [x] 記錄 Cloudflare 內嵌登入驗證錯誤、API Token 替代部署與撤銷建議。
+- [x] 調查 Spotify 公開播放清單完整分頁的可靠資料來源與限制。
+- [ ] 擴充 Cloudflare Worker 以安全讀取 Spotify 公開歌單所有分頁。
+- [ ] 將 Spotify 匯入改接 Worker 完整曲目端點並保留現有回退流程。
+- [ ] 驗證 Spotify 完整曲目數、CSV／JSON／TXT 匯出與 GitHub Pages 部署。
+- [x] 確認 Spotify Developer App 擁有者需具有效 Premium 訂閱才能呼叫播放清單項目端點的限制；目前帳戶不具該資格。
+- [x] 在未具 Premium 資格時移除未完成的 Spotify 官方完整分頁接線，保留公開首批解析功能。
