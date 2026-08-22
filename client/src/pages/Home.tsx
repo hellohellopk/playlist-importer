@@ -796,7 +796,7 @@ export default function Home() {
   );
 
   return (
-    <main className="min-h-screen px-4 py-7 sm:px-6 lg:py-10">
+    <main className="min-h-screen px-4 py-6 sm:px-6 lg:py-8">
       <section className="app-shell mx-auto max-w-5xl">
         <header className="terminal-window overflow-hidden">
           <div className="terminal-bar">
@@ -831,16 +831,7 @@ export default function Home() {
           </div>
         </header>
 
-        <section className="intro-panel mt-5 overflow-hidden" aria-label="播放清單匯入">
-          <div className="intro-art" aria-hidden="true" />
-          <div className="relative z-10 max-w-xl">
-            <p className="eyebrow text-slate-500">跨服務匯入台</p>
-            <h1>貼上公開歌單連結，<br /><em>整理每一首歌。</em></h1>
-            <p className="intro-copy">支援 Apple Music 與 Spotify。原有的 Apple Music 推薦、排行榜、搜尋、試聽與 Telegram 傳送功能仍保留。</p>
-          </div>
-        </section>
-
-        <section className="import-panel mt-4" aria-label="新增播放清單">
+        <section className="import-panel mt-3" aria-label="新增播放清單">
           <div className="import-header">
             <div>
               <p className="eyebrow">新增來源</p>
@@ -888,7 +879,7 @@ export default function Home() {
         </section>
 
         {showSettings && (
-          <section className="settings-panel mt-4" aria-label="設定">
+          <section className="settings-panel mt-3" aria-label="設定">
             <div className="settings-title"><SlidersHorizontal size={17} /><span>追蹤器設定</span></div>
             <div className="settings-grid">
               <label>
@@ -925,7 +916,7 @@ export default function Home() {
           </section>
         )}
 
-        <section className="song-workspace mt-5" aria-label="歌曲清單">
+        <section className="song-workspace mt-3" aria-label="歌曲清單">
           <div className="workspace-head">
             <div>
               <p className="eyebrow">目前歌曲</p>
